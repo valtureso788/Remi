@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react'
+import React, { useRef, useMemo, Suspense } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { OrbitControls, RoundedBox, Environment, ContactShadows, PerspectiveCamera } from '@react-three/drei'
 import { BODY_COLORS, FACADE_COLORS, MATERIALS } from './data'
@@ -267,25 +267,27 @@ function LegsModel({ w, h, d, legType }) {
 export default function FurnitureViewer({ config }) {
   return (
     <Canvas shadows gl={{ preserveDrawingBuffer: true, antialias: true }} id="furniture-canvas">
-      <PerspectiveCamera makeDefault position={[2.5, 1.8, 2.5]} fov={45} />
-      <ambientLight intensity={0.4} />
-      <directionalLight position={[5, 8, 5]} intensity={1} castShadow
-        shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
-      <directionalLight position={[-3, 4, -2]} intensity={0.3} />
-      <pointLight position={[0, 3, 0]} intensity={0.2} color="#6366f1" />
+      <Suspense fallback={null}>
+        <PerspectiveCamera makeDefault position={[2.5, 1.8, 2.5]} fov={45} />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[5, 8, 5]} intensity={1} castShadow
+          shadow-mapSize-width={2048} shadow-mapSize-height={2048} />
+        <directionalLight position={[-3, 4, -2]} intensity={0.3} />
+        <pointLight position={[0, 3, 0]} intensity={0.2} color="#6366f1" />
 
-      <FurnitureModel config={config} />
+        <FurnitureModel config={config} />
 
-      <ContactShadows position={[0, -(config.height / 200 + (config.legs !== 'none' ? 0.08 : 0)), 0]}
-        opacity={0.4} scale={8} blur={2.5} far={4} />
+        <ContactShadows position={[0, -(config.height / 200 + (config.legs !== 'none' ? 0.08 : 0)), 0]}
+          opacity={0.4} scale={8} blur={2.5} far={4} />
 
-      <Environment preset="studio" />
-      <OrbitControls enablePan enableZoom enableRotate
-        minDistance={1} maxDistance={8}
-        minPolarAngle={0.2} maxPolarAngle={Math.PI / 2 + 0.2} />
+        <Environment preset="studio" />
+        <OrbitControls enablePan enableZoom enableRotate
+          minDistance={1} maxDistance={8}
+          minPolarAngle={0.2} maxPolarAngle={Math.PI / 2 + 0.2} />
 
-      {/* Floor grid */}
-      <gridHelper args={[10, 20, '#1a1a3e', '#12121e']} position={[0, -(config.height / 200 + (config.legs !== 'none' ? 0.08 : 0) + 0.001), 0]} />
+        {/* Floor grid */}
+        <gridHelper args={[10, 20, '#1a1a3e', '#12121e']} position={[0, -(config.height / 200 + (config.legs !== 'none' ? 0.08 : 0) + 0.001), 0]} />
+      </Suspense>
     </Canvas>
   )
 }

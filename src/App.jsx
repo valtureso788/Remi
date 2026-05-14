@@ -1,10 +1,11 @@
-import React, { useState, useCallback, Suspense } from 'react'
-import { FURNITURE_TYPES, MATERIALS, BODY_COLORS, FACADE_COLORS, DOOR_TYPES, HANDLE_TYPES, LEG_TYPES, calculatePrice, formatPrice, getDefaultConfig, DEMO_ORDERS } from './data'
+import React, { useState, useCallback, Suspense, useEffect } from 'react'
+import { FURNITURE_TYPES, MATERIALS, BODY_COLORS, FACADE_COLORS, DOOR_TYPES, HANDLE_TYPES, LEG_TYPES, calculatePrice, formatPrice, getDefaultConfig } from './data'
 import ConstructorSidebar from './ConstructorSidebar'
 import FurnitureViewer from './FurnitureViewer'
 import { QRCodeSVG } from 'qrcode.react'
 import jsPDF from 'jspdf'
-import { RotateCcw, ZoomIn, ZoomOut, Camera, Sun, Moon, Menu, X, Home, Wrench as WrenchIcon, Shield, BarChart3, Package, Users, Settings, Eye, Trash2, ArrowLeft } from 'lucide-react'
+import { RotateCcw, ZoomIn, ZoomOut, Camera, Sun, Moon, Menu, X, Home, Wrench as WrenchIcon, Shield, BarChart3, Package, Users, Settings, Eye, Trash2, ArrowLeft, LogIn, LogOut, MessageSquare, CreditCard, Star } from 'lucide-react'
+import * as db from './db'
 
 // ===== Toast System =====
 function ToastContainer({ toasts }) {
@@ -17,46 +18,117 @@ function ToastContainer({ toasts }) {
   )
 }
 
-// ===== Order Modal =====
-function OrderModal({ config, onClose, onSubmit }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', comment: '' })
-  const pricing = calculatePrice(config)
+// ===== Auth Modal =====
+function AuthModal({ onClose, onLogin }) {
+  const [isLogin, setIsLogin] = useState(true)
+  const [form, setForm] = useState({ username: '', password: '', name: '' })
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!form.name || !form.phone) return
-    onSubmit(form)
+    if (isLogin) {
+      const u = db.login(form.username, form.password)
+      if (u) onLogin(u)
+      else alert('Неверный логин или пароль')
+    } else {
+      const u = db.register(form.username, form.password, form.name || form.username)
+      if (u) onLogin(u)
+      else alert('Пользователь уже существует')
+    }
   }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>📦 Оформление заказа</h2>
-        <p style={{ color: 'var(--text-secondary)', marginBottom: 16, fontSize: '0.9rem' }}>
-          Итого: <strong style={{ color: 'var(--green)' }}>{formatPrice(pricing.total)}</strong>
-        </p>
+        <h2>{isLogin ? 'Вход в аккаунт' : 'Регистрация'}</h2>
         <form onSubmit={handleSubmit}>
+          {!isLogin && (
+            <div className="form-group">
+              <label>Имя</label>
+              <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+            </div>
+          )}
           <div className="form-group">
-            <label>Имя *</label>
-            <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ваше имя" required />
-          </div>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Телефон *</label>
-              <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+7 (___) ___-__-__" required />
-            </div>
-            <div className="form-group">
-              <label>Email</label>
-              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
-            </div>
+            <label>Логин</label>
+            <input type="text" value={form.username} onChange={e => setForm({...form, username: e.target.value})} required />
           </div>
           <div className="form-group">
-            <label>Комментарий</label>
-            <textarea value={form.comment} onChange={e => setForm({ ...form, comment: e.target.value })} placeholder="Дополнительные пожелания..." />
+            <label>Пароль</label>
+            <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required />
           </div>
           <div className="modal-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Отмена</button>
-            <button type="submit" className="btn btn-primary">Отправить заказ</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setIsLogin(!isLogin)}>
+              {isLogin ? 'Создать аккаунт' : 'Уже есть аккаунт?'}
+            </button>
+            <button type="submit" className="btn btn-primary">{isLogin ? 'Войти' : 'Зарегистрироваться'}</button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+// ===== Order & Payment Modal =====
+function OrderModal({ config, onClose, onSubmit, currentUser }) {
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState({ name: currentUser?.name || '', phone: '', address: '', comment: '' })
+  const [isProcessing, setIsProcessing] = useState(false)
+  const pricing = calculatePrice(config)
+
+  const handleNext = (e) => {
+    e.preventDefault()
+    setStep(2)
+  }
+
+  const handlePay = (e) => {
+    e.preventDefault()
+    setIsProcessing(true)
+    setTimeout(() => {
+      setIsProcessing(false)
+      onSubmit({ ...form, total: pricing.total, type: config.type, userId: currentUser?.id })
+    }, 2000)
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        {step === 1 ? (
+          <>
+            <h2>📦 Оформление заказа</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>Итого к оплате: <strong style={{ color: 'var(--green)' }}>{formatPrice(pricing.total)}</strong></p>
+            <form onSubmit={handleNext}>
+              <div className="form-group"><label>Имя *</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
+              <div className="form-group"><label>Телефон *</label><input type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} required /></div>
+              <div className="form-group"><label>Адрес доставки *</label><input type="text" value={form.address} onChange={e => setForm({...form, address: e.target.value})} required /></div>
+              <div className="form-group"><label>Комментарий</label><textarea value={form.comment} onChange={e => setForm({...form, comment: e.target.value})} /></div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={onClose}>Отмена</button>
+                <button type="submit" className="btn btn-primary">Перейти к оплате</button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <>
+            <h2>💳 Оплата заказа</h2>
+            {isProcessing ? (
+              <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                <div className="float" style={{ fontSize: '3rem' }}>🔄</div>
+                <p>Обработка платежа...</p>
+              </div>
+            ) : (
+              <form onSubmit={handlePay}>
+                <div className="form-group"><label>Номер карты</label><input type="text" placeholder="0000 0000 0000 0000" maxLength="19" required /></div>
+                <div className="form-row">
+                  <div className="form-group"><label>Срок</label><input type="text" placeholder="MM/YY" maxLength="5" required /></div>
+                  <div className="form-group"><label>CVC</label><input type="password" placeholder="123" maxLength="3" required /></div>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>Назад</button>
+                  <button type="submit" className="btn btn-primary">Оплатить {formatPrice(pricing.total)}</button>
+                </div>
+              </form>
+            )}
+          </>
+        )}
       </div>
     </div>
   )
@@ -115,10 +187,172 @@ function SavedProjectsModal({ projects, onLoad, onDelete, onClose }) {
   )
 }
 
-// ===== Admin Page =====
-function AdminPage() {
+// ===== Support Contact Modal =====
+function SupportModal({ currentUser, onClose, addToast }) {
+  const [text, setText] = useState('')
+  const handleSend = () => {
+    if (!text.trim()) return;
+    db.addSupportMessage(currentUser.id, currentUser.name, text);
+    addToast('Сообщение отправлено в поддержку', 'success')
+    onClose()
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <h2>💬 Связь с поддержкой</h2>
+        <div className="form-group">
+          <label>Ваше сообщение</label>
+          <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Опишите проблему или вопрос..." />
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-secondary" onClick={onClose}>Отмена</button>
+          <button className="btn btn-primary" onClick={handleSend}>Отправить</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ===== Dashboards based on role =====
+function UserDashboard({ currentUser, addToast }) {
+  const [orders, setOrders] = useState([])
+  const [showSupport, setShowSupport] = useState(false)
+  
+  useEffect(() => {
+    setOrders(db.getOrders().filter(o => o.userId === currentUser.id))
+  }, [currentUser])
+
+  return (
+    <div className="section" style={{ paddingTop: '100px' }}>
+      <h1>Личный кабинет: {currentUser.name}</h1>
+      <button className="btn btn-primary" onClick={() => setShowSupport(true)} style={{ marginTop: 16 }}>Написать в поддержку</button>
+      
+      <h2 style={{ marginTop: 40, marginBottom: 20 }}>Мои заказы</h2>
+      {orders.length === 0 ? <p>У вас пока нет заказов.</p> : (
+        <table className="data-table">
+          <thead><tr><th>ID</th><th>Тип мебели</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr></thead>
+          <tbody>
+            {orders.map(o => (
+              <tr key={o.id}><td>#{o.id}</td><td>{FURNITURE_TYPES.find(f => f.id === o.type)?.name || o.type}</td><td>{formatPrice(o.total)}</td><td><span className={`badge badge-${o.status}`}>{o.status}</span></td><td>{o.date}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {showSupport && <SupportModal currentUser={currentUser} onClose={() => setShowSupport(false)} addToast={addToast} />}
+    </div>
+  )
+}
+
+function DeliveryDashboard({ currentUser, addToast }) {
+  const [orders, setOrders] = useState([])
+  const [showSupport, setShowSupport] = useState(false)
+
+  const load = () => setOrders(db.getOrders().filter(o => o.status !== 'done'))
+  useEffect(() => { load() }, [])
+
+  const markDone = (id) => {
+    db.updateOrderStatus(id, 'done');
+    addToast('Статус обновлен');
+    load();
+  }
+
+  return (
+    <div className="section" style={{ paddingTop: '100px' }}>
+      <h1>Кабинет Курьера: {currentUser.name}</h1>
+      <button className="btn btn-primary" onClick={() => setShowSupport(true)} style={{ marginTop: 16 }}>Написать в поддержку</button>
+      
+      <h2 style={{ marginTop: 40, marginBottom: 20 }}>Активные заказы на доставку</h2>
+      <table className="data-table">
+        <thead><tr><th>ID</th><th>Клиент</th><th>Адрес</th><th>Телефон</th><th>Статус</th><th>Действие</th></tr></thead>
+        <tbody>
+          {orders.map(o => (
+            <tr key={o.id}>
+              <td>#{o.id}</td><td>{o.name}</td><td>{o.address}</td><td>{o.phone}</td>
+              <td><span className={`badge badge-${o.status}`}>{o.status}</span></td>
+              <td>
+                {o.status === 'new' && <button className="btn-sm btn-secondary" onClick={() => { db.updateOrderStatus(o.id, 'process'); load(); }}>Взять в работу</button>}
+                {o.status === 'process' && <button className="btn-sm btn-primary" onClick={() => markDone(o.id)}>Доставлено</button>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {showSupport && <SupportModal currentUser={currentUser} onClose={() => setShowSupport(false)} addToast={addToast} />}
+    </div>
+  )
+}
+
+function SupportDashboard({ currentUser, addToast }) {
+  const [messages, setMessages] = useState([])
+  const [reviews, setReviews] = useState([])
+  const [replyText, setReplyText] = useState('')
+  const [activeMsgId, setActiveMsgId] = useState(null)
+  
+  const load = () => {
+    setMessages(db.getSupportMessages())
+    setReviews(db.getReviews())
+  }
+  useEffect(() => { load() }, [])
+
+  const handleReplyMsg = (id) => {
+    db.addSupportReply(id, replyText);
+    setReplyText(''); setActiveMsgId(null);
+    addToast('Ответ отправлен'); load();
+  }
+
+  return (
+    <div className="section" style={{ paddingTop: '100px' }}>
+      <h1>Кабинет Поддержки</h1>
+      
+      <h2 style={{ marginTop: 40, marginBottom: 20 }}>Обращения клиентов</h2>
+      {messages.map(m => (
+        <div key={m.id} style={{ background: 'var(--bg-card)', padding: 16, marginBottom: 16, borderRadius: 8 }}>
+          <p><strong>{m.userName}</strong> ({m.date})</p>
+          <p style={{ margin: '8px 0' }}>{m.text}</p>
+          {m.reply ? (
+            <div style={{ borderLeft: '3px solid var(--accent)', paddingLeft: 10, color: 'var(--text-secondary)' }}>Ответ: {m.reply}</div>
+          ) : (
+            <div>
+              {activeMsgId === m.id ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <input type="text" value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Ваш ответ..." style={{ flex: 1, padding: 8, borderRadius: 4, border: '1px solid var(--border)' }} />
+                  <button className="btn-sm btn-primary" onClick={() => handleReplyMsg(m.id)}>Ответить</button>
+                </div>
+              ) : (
+                <button className="btn-sm btn-secondary" onClick={() => setActiveMsgId(m.id)}>Ответить</button>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+      
+      <h2 style={{ marginTop: 40, marginBottom: 20 }}>Отзывы</h2>
+      {reviews.map(r => (
+        <div key={r.id} style={{ background: 'var(--bg-card)', padding: 16, marginBottom: 16, borderRadius: 8 }}>
+          <p><strong>{r.userName}</strong> ({r.rating} ⭐) - {r.date}</p>
+          <p style={{ margin: '8px 0' }}>{r.text}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function AdminDashboard() {
   const [tab, setTab] = useState('orders')
-  const statusBadge = (s) => s === 'new' ? <span className="badge badge-new">Новая</span> : s === 'process' ? <span className="badge badge-process">В работе</span> : <span className="badge badge-done">Выполнен</span>
+  const [orders, setOrders] = useState([])
+  const [users, setUsers] = useState([])
+  const [stats, setStats] = useState({ totalRevenue: 0, totalOrders: 0 })
+
+  useEffect(() => {
+    const o = db.getOrders()
+    const u = db.getUsers()
+    setOrders(o)
+    setUsers(u)
+    setStats({
+      totalRevenue: o.reduce((acc, curr) => acc + curr.total, 0),
+      totalOrders: o.length
+    })
+  }, [])
 
   return (
     <div className="admin-layout">
@@ -127,17 +361,16 @@ function AdminPage() {
         <a className={tab === 'orders' ? 'active' : ''} onClick={() => setTab('orders')}><Package size={16} /> Заявки</a>
         <a className={tab === 'stats' ? 'active' : ''} onClick={() => setTab('stats')}><BarChart3 size={16} /> Статистика</a>
         <a className={tab === 'catalog' ? 'active' : ''} onClick={() => setTab('catalog')}><Settings size={16} /> Каталог</a>
-        <a className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}><Users size={16} /> Клиенты</a>
+        <a className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}><Users size={16} /> Пользователи</a>
       </div>
       <div className="admin-content">
         {tab === 'stats' && (
           <>
             <h1>📊 Статистика</h1>
             <div className="stats-grid">
-              <div className="stat-card"><div className="label">Заказов сегодня</div><div className="value" style={{ color: 'var(--accent-light)' }}>12</div><div className="change up">↑ 18% к вчера</div></div>
-              <div className="stat-card"><div className="label">Выручка за месяц</div><div className="value" style={{ color: 'var(--green)' }}>1.2M ₽</div><div className="change up">↑ 24%</div></div>
-              <div className="stat-card"><div className="label">Средний чек</div><div className="value" style={{ color: 'var(--orange)' }}>45 800 ₽</div><div className="change up">↑ 5%</div></div>
-              <div className="stat-card"><div className="label">Конверсия</div><div className="value" style={{ color: 'var(--purple)' }}>8.4%</div><div className="change down">↓ 1.2%</div></div>
+              <div className="stat-card"><div className="label">Всего заказов</div><div className="value" style={{ color: 'var(--accent-light)' }}>{stats.totalOrders}</div></div>
+              <div className="stat-card"><div className="label">Общая выручка</div><div className="value" style={{ color: 'var(--green)' }}>{formatPrice(stats.totalRevenue)}</div></div>
+              <div className="stat-card"><div className="label">Средний чек</div><div className="value" style={{ color: 'var(--orange)' }}>{stats.totalOrders > 0 ? formatPrice(Math.round(stats.totalRevenue / stats.totalOrders)) : '0 ₽'}</div></div>
             </div>
           </>
         )}
@@ -147,8 +380,8 @@ function AdminPage() {
             <table className="data-table">
               <thead><tr><th>ID</th><th>Клиент</th><th>Телефон</th><th>Тип мебели</th><th>Сумма</th><th>Статус</th><th>Дата</th></tr></thead>
               <tbody>
-                {DEMO_ORDERS.map(o => (
-                  <tr key={o.id}><td>#{o.id}</td><td>{o.name}</td><td>{o.phone}</td><td>{o.type}</td><td>{formatPrice(o.total)}</td><td>{statusBadge(o.status)}</td><td>{o.date}</td></tr>
+                {orders.map(o => (
+                  <tr key={o.id}><td>#{o.id}</td><td>{o.name}</td><td>{o.phone}</td><td>{FURNITURE_TYPES.find(f=>f.id===o.type)?.name||o.type}</td><td>{formatPrice(o.total)}</td><td><span className={`badge badge-${o.status}`}>{o.status}</span></td><td>{o.date}</td></tr>
                 ))}
               </tbody>
             </table>
@@ -169,12 +402,12 @@ function AdminPage() {
         )}
         {tab === 'users' && (
           <>
-            <h1>👥 Клиенты</h1>
+            <h1>👥 Пользователи системы</h1>
             <table className="data-table">
-              <thead><tr><th>Имя</th><th>Телефон</th><th>Заказов</th><th>Общая сумма</th></tr></thead>
+              <thead><tr><th>ID</th><th>Логин</th><th>Имя</th><th>Роль</th></tr></thead>
               <tbody>
-                {DEMO_ORDERS.map(o => (
-                  <tr key={o.id}><td>{o.name}</td><td>{o.phone}</td><td>1</td><td>{formatPrice(o.total)}</td></tr>
+                {users.map(u => (
+                  <tr key={u.id}><td>#{u.id}</td><td>{u.username}</td><td>{u.name}</td><td><span className="badge badge-process">{u.role}</span></td></tr>
                 ))}
               </tbody>
             </table>
@@ -186,7 +419,21 @@ function AdminPage() {
 }
 
 // ===== Landing / Home =====
-function HomePage({ onSelectType }) {
+function HomePage({ onSelectType, currentUser, addToast }) {
+  const [reviews, setReviews] = useState([])
+  const [newReview, setNewReview] = useState({ text: '', rating: 5 })
+
+  useEffect(() => { setReviews(db.getReviews()) }, [])
+
+  const handleSubmitReview = (e) => {
+    e.preventDefault()
+    if (!currentUser) return addToast('Пожалуйста, авторизуйтесь', 'error')
+    db.addReview(currentUser.id, currentUser.name, newReview.text, newReview.rating)
+    setNewReview({ text: '', rating: 5 })
+    setReviews(db.getReviews())
+    addToast('Отзыв добавлен!', 'success')
+  }
+
   const features = [
     { icon: '🎨', title: '3D Визуализация', desc: 'Реалистичная модель мебели в реальном времени', color: 'rgba(99,102,241,0.15)' },
     { icon: '📐', title: 'Точные размеры', desc: 'Настройте ширину, высоту и глубину до сантиметра', color: 'rgba(139,92,246,0.15)' },
@@ -198,7 +445,6 @@ function HomePage({ onSelectType }) {
 
   return (
     <>
-      {/* Hero */}
       <section className="hero">
         <div className="hero-bg" />
         <div className="hero-grid" />
@@ -212,48 +458,66 @@ function HomePage({ onSelectType }) {
             <button className="btn btn-primary" onClick={() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth' })}>
               🚀 Начать проектирование
             </button>
-            <button className="btn btn-secondary" onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}>
-              ℹ️ Узнать больше
-            </button>
           </div>
         </div>
       </section>
 
-      {/* Features */}
       <section className="section" id="features">
-        <div className="section-header">
-          <h2>Возможности конструктора</h2>
-          <p>Всё, что нужно для создания идеальной мебели</p>
-        </div>
+        <div className="section-header"><h2>Возможности конструктора</h2></div>
         <div className="features-grid">
           {features.map((f, i) => (
             <div key={i} className="feature-card">
               <div className="icon" style={{ background: f.color, fontSize: '1.5rem' }}>{f.icon}</div>
-              <h3>{f.title}</h3>
-              <p>{f.desc}</p>
+              <h3>{f.title}</h3><p>{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Catalog */}
       <section className="section" id="catalog">
-        <div className="section-header">
-          <h2>Каталог мебели</h2>
-          <p>Выберите тип мебели, чтобы начать проектирование</p>
-        </div>
+        <div className="section-header"><h2>Каталог мебели</h2></div>
         <div className="catalog-grid">
           {FURNITURE_TYPES.map(ft => (
             <div key={ft.id} className="catalog-card" onClick={() => onSelectType(ft.id)}>
               <div className="catalog-card-icon">{ft.icon}</div>
-              <h3>{ft.name}</h3>
-              <p>{ft.desc}</p>
+              <h3>{ft.name}</h3><p>{ft.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* Footer */}
+      <section className="section" id="reviews">
+        <div className="section-header"><h2>Отзывы наших клиентов</h2></div>
+        <div className="features-grid" style={{ marginBottom: 40 }}>
+          {reviews.slice(0, 4).map(r => (
+            <div key={r.id} className="feature-card">
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8, color: 'var(--orange)' }}>
+                {'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}
+              </div>
+              <p style={{ fontStyle: 'italic', marginBottom: 12 }}>"{r.text}"</p>
+              <strong style={{ fontSize: '0.9rem' }}>{r.userName}</strong>
+            </div>
+          ))}
+        </div>
+        
+        {currentUser && (
+          <div style={{ background: 'var(--bg-card)', padding: 32, borderRadius: 'var(--radius-lg)', maxWidth: 600, margin: '0 auto' }}>
+            <h3>Оставить отзыв</h3>
+            <form onSubmit={handleSubmitReview} style={{ marginTop: 16 }}>
+              <div className="form-group">
+                <label>Оценка (1-5)</label>
+                <input type="number" min="1" max="5" value={newReview.rating} onChange={e => setNewReview({...newReview, rating: Number(e.target.value)})} required />
+              </div>
+              <div className="form-group">
+                <label>Ваш отзыв</label>
+                <textarea value={newReview.text} onChange={e => setNewReview({...newReview, text: e.target.value})} required />
+              </div>
+              <button type="submit" className="btn btn-primary">Отправить отзыв</button>
+            </form>
+          </div>
+        )}
+      </section>
+
       <footer className="footer">
         <p>© 2026 REMI Furniture. Все права защищены. Онлайн-конструктор мебели с 3D-визуализацией.</p>
       </footer>
@@ -262,13 +526,13 @@ function HomePage({ onSelectType }) {
 }
 
 // ===== Constructor Page =====
-function ConstructorPage({ config, setConfig, addToast, onBack }) {
+function ConstructorPage({ config, setConfig, addToast, onBack, currentUser }) {
   const [showOrder, setShowOrder] = useState(false)
   const [showQR, setShowQR] = useState(false)
 
-  const handleOrder = (form) => {
-    const orderId = Math.floor(1000 + Math.random() * 9000)
-    addToast(`Заказ #${orderId} отправлен! Менеджер свяжется с вами.`, 'success')
+  const handleOrder = (orderData) => {
+    db.addOrder(orderData)
+    addToast(`Оплата прошла успешно! Заказ оформлен.`, 'success')
     setShowOrder(false)
   }
 
@@ -292,32 +556,14 @@ function ConstructorPage({ config, setConfig, addToast, onBack }) {
 
   const handleExportPDF = () => {
     const pricing = calculatePrice(config)
-    const ft = FURNITURE_TYPES.find(f => f.id === config.type)
-    const mat = MATERIALS.find(m => m.id === config.material)
-    const bc = BODY_COLORS.find(c => c.id === config.bodyColor)
-    const fc = FACADE_COLORS.find(c => c.id === config.facadeColor)
-    const dt = DOOR_TYPES.find(d => d.id === config.doorType)
-    const ht = HANDLE_TYPES.find(h => h.id === config.handles)
-    const lt = LEG_TYPES.find(l => l.id === config.legs)
-
     const doc = new jsPDF()
     doc.setFontSize(20)
     doc.text('REMI - Furniture Project', 20, 25)
     doc.setFontSize(12)
-    doc.text(`Type: ${ft?.name || config.type}`, 20, 40)
+    doc.text(`Type: ${config.type}`, 20, 40)
     doc.text(`Dimensions: ${config.width} x ${config.height} x ${config.depth} cm`, 20, 50)
-    doc.text(`Material: ${mat?.name}`, 20, 60)
-    doc.text(`Body Color: ${bc?.name}`, 20, 70)
-    doc.text(`Facade Color: ${fc?.name}`, 20, 80)
-    doc.text(`Door Type: ${dt?.name}`, 20, 90)
-    doc.text(`Shelves: ${config.shelves}`, 20, 100)
-    doc.text(`Sections: ${config.sections}`, 20, 110)
-    doc.text(`Drawers: ${config.drawers}`, 20, 120)
-    doc.text(`Handles: ${ht?.name}`, 20, 130)
-    doc.text(`Legs: ${lt?.name}`, 20, 140)
     doc.setFontSize(14)
     doc.text(`Total Price: ${formatPrice(pricing.total)}`, 20, 160)
-    doc.text(`Date: ${new Date().toLocaleDateString('ru-RU')}`, 20, 175)
     doc.save(`remi-project-${Date.now()}.pdf`)
     addToast('PDF сохранён!', 'success')
   }
@@ -329,27 +575,16 @@ function ConstructorPage({ config, setConfig, addToast, onBack }) {
         onExportPDF={handleExportPDF} onExportImage={handleExportImage}
         onQR={() => setShowQR(true)} />
       <div className="constructor-viewport">
-        {/* Price badge */}
         <div className="price-badge">
           <div className="label">Итого</div>
           <div className="price">{formatPrice(calculatePrice(config).total)}</div>
         </div>
-        {/* Back button */}
         <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
           <button className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={16} /> Каталог</button>
         </div>
-        {/* 3D Viewer */}
-        <Suspense fallback={
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div className="float" style={{ fontSize: '3rem', marginBottom: 16 }}>🪑</div>
-              <p>Загрузка 3D модели...</p>
-            </div>
-          </div>
-        }>
+        <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--text-muted)'}}><div style={{textAlign:'center'}}><div className="float" style={{fontSize:'3rem',marginBottom:16}}>🪑</div><p>Загрузка 3D модели...</p></div></div>}>
           <FurnitureViewer config={config} />
         </Suspense>
-        {/* Viewport hint */}
         <div className="viewport-controls">
           <button className="btn-icon" title="Вращение"><RotateCcw size={16} /></button>
           <button className="btn-icon" title="Приблизить"><ZoomIn size={16} /></button>
@@ -357,7 +592,7 @@ function ConstructorPage({ config, setConfig, addToast, onBack }) {
           <button className="btn-icon" title="Скриншот" onClick={handleExportImage}><Camera size={16} /></button>
         </div>
       </div>
-      {showOrder && <OrderModal config={config} onClose={() => setShowOrder(false)} onSubmit={handleOrder} />}
+      {showOrder && <OrderModal config={config} onClose={() => setShowOrder(false)} onSubmit={handleOrder} currentUser={currentUser} />}
       {showQR && <QRModal config={config} onClose={() => setShowQR(false)} />}
     </div>
   )
@@ -365,10 +600,12 @@ function ConstructorPage({ config, setConfig, addToast, onBack }) {
 
 // ===== Main App =====
 export default function App() {
-  const [page, setPage] = useState('home') // home | constructor | admin
+  const [page, setPage] = useState('home') // home | constructor | dashboard
   const [config, setConfig] = useState(getDefaultConfig('wardrobe'))
   const [toasts, setToasts] = useState([])
   const [showProjects, setShowProjects] = useState(false)
+  const [showAuth, setShowAuth] = useState(false)
+  const [currentUser, setCurrentUser] = useState(null)
 
   const addToast = useCallback((msg, type = 'success') => {
     const id = Date.now()
@@ -376,61 +613,56 @@ export default function App() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500)
   }, [])
 
-  const handleSelectType = (typeId) => {
-    setConfig(getDefaultConfig(typeId))
-    setPage('constructor')
+  const handleLogin = (user) => {
+    setCurrentUser(user)
+    setShowAuth(false)
+    addToast(`Добро пожаловать, ${user.name}!`, 'success')
   }
 
-  const handleLoadProject = (project) => {
-    const { savedAt, ...cfg } = project
-    setConfig(cfg)
-    setShowProjects(false)
-    setPage('constructor')
-    addToast('Проект загружен!', 'success')
+  const handleLogout = () => {
+    setCurrentUser(null)
+    setPage('home')
+    addToast('Вы вышли из системы')
   }
-
-  const handleDeleteProject = (index) => {
-    const saved = JSON.parse(localStorage.getItem('remi_projects') || '[]')
-    saved.splice(index, 1)
-    localStorage.setItem('remi_projects', JSON.stringify(saved))
-    addToast('Проект удалён', 'success')
-    setShowProjects(false)
-  }
-
-  const savedProjects = JSON.parse(localStorage.getItem('remi_projects') || '[]')
 
   return (
     <div className="app">
-      {/* Navbar */}
       <nav className="navbar">
         <div className="navbar-brand" onClick={() => setPage('home')} style={{ cursor: 'pointer' }}>
-          <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="url(#navgrad)"/><text x="16" y="22" textAnchor="middle" fill="white" fontSize="18" fontWeight="800" fontFamily="Inter">R</text><defs><linearGradient id="navgrad" x1="0" y1="0" x2="32" y2="32"><stop stopColor="#6366f1"/><stop offset="1" stopColor="#8b5cf6"/></linearGradient></defs></svg>
+          <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="url(#navgrad)"/><text x="16" y="22" textAnchor="middle" fill="white" fontSize="18" fontWeight="800" fontFamily="Inter">R</text><defs><linearGradient id="navgrad" x1="0" y1="0" x2="32" y2="32"><stop stopColor="#ec4899"/><stop offset="1" stopColor="#8b5cf6"/></linearGradient></defs></svg>
           REMI
         </div>
         <div className="navbar-links">
           <a className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Главная</a>
           <a className={page === 'constructor' ? 'active' : ''} onClick={() => { if (page !== 'constructor') { setConfig(getDefaultConfig('wardrobe')); setPage('constructor'); } }}>Конструктор</a>
           <button onClick={() => setShowProjects(true)}>Проекты</button>
-          <a className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')}>Админ</a>
+          
+          {currentUser ? (
+            <>
+              <button className={page === 'dashboard' ? 'active' : ''} onClick={() => setPage('dashboard')} style={{ color: 'var(--accent-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Shield size={16} /> Кабинет
+              </button>
+              <button onClick={handleLogout} title="Выйти"><LogOut size={16} /></button>
+            </>
+          ) : (
+            <button className="btn-sm btn-primary" onClick={() => setShowAuth(true)} style={{ marginLeft: 8 }}><LogIn size={14} /> Войти</button>
+          )}
         </div>
       </nav>
 
-      {/* Pages */}
-      {page === 'home' && <HomePage onSelectType={handleSelectType} />}
-      {page === 'constructor' && <ConstructorPage config={config} setConfig={setConfig} addToast={addToast} onBack={() => setPage('home')} />}
-      {page === 'admin' && <AdminPage />}
-
-      {/* Modals */}
-      {showProjects && (
-        <SavedProjectsModal
-          projects={savedProjects}
-          onLoad={handleLoadProject}
-          onDelete={handleDeleteProject}
-          onClose={() => setShowProjects(false)}
-        />
+      {page === 'home' && <HomePage onSelectType={t => { setConfig(getDefaultConfig(t)); setPage('constructor') }} currentUser={currentUser} addToast={addToast} />}
+      {page === 'constructor' && <ConstructorPage config={config} setConfig={setConfig} addToast={addToast} onBack={() => setPage('home')} currentUser={currentUser} />}
+      {page === 'dashboard' && currentUser && (
+        <>
+          {currentUser.role === 'admin' && <AdminDashboard />}
+          {currentUser.role === 'user' && <UserDashboard currentUser={currentUser} addToast={addToast} />}
+          {currentUser.role === 'support' && <SupportDashboard currentUser={currentUser} addToast={addToast} />}
+          {currentUser.role === 'delivery' && <DeliveryDashboard currentUser={currentUser} addToast={addToast} />}
+        </>
       )}
 
-      {/* Toasts */}
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} onLogin={handleLogin} />}
+      {showProjects && <SavedProjectsModal projects={JSON.parse(localStorage.getItem('remi_projects') || '[]')} onLoad={p => { const {savedAt,...cfg}=p; setConfig(cfg); setShowProjects(false); setPage('constructor'); }} onDelete={i => { const s=JSON.parse(localStorage.getItem('remi_projects')||'[]'); s.splice(i,1); localStorage.setItem('remi_projects',JSON.stringify(s)); addToast('Удалено'); setShowProjects(false); }} onClose={() => setShowProjects(false)} />}
       <ToastContainer toasts={toasts} />
     </div>
   )
