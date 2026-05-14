@@ -19,7 +19,7 @@ function ToastContainer({ toasts }) {
 }
 
 // ===== Auth Modal =====
-function AuthModal({ onClose, onLogin }) {
+function AuthModal({ onClose, onLogin, force }) {
   const [isLogin, setIsLogin] = useState(true)
   const [form, setForm] = useState({ username: '', password: '', name: '' })
 
@@ -37,9 +37,13 @@ function AuthModal({ onClose, onLogin }) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" style={force ? { background: 'var(--bg-primary)', backdropFilter: 'none' } : {}} onClick={!force ? onClose : undefined}>
       <div className="modal" onClick={e => e.stopPropagation()}>
-        <h2>{isLogin ? 'Вход в аккаунт' : 'Регистрация'}</h2>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ fontSize: '3rem', marginBottom: 16 }}>🛋️</div>
+          <h2>{isLogin ? 'Вход в аккаунт' : 'Регистрация'}</h2>
+          {force && <p style={{ color: 'var(--text-secondary)' }}>Для доступа к сервису REMI необходимо авторизоваться.</p>}
+        </div>
         <form onSubmit={handleSubmit}>
           {!isLogin && (
             <div className="form-group">
@@ -55,7 +59,7 @@ function AuthModal({ onClose, onLogin }) {
             <label>Пароль</label>
             <input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} required />
           </div>
-          <div className="modal-actions">
+          <div className="modal-actions" style={{ justifyContent: force ? 'center' : 'flex-end', width: '100%' }}>
             <button type="button" className="btn btn-secondary" onClick={() => setIsLogin(!isLogin)}>
               {isLogin ? 'Создать аккаунт' : 'Уже есть аккаунт?'}
             </button>
@@ -623,6 +627,16 @@ export default function App() {
     setCurrentUser(null)
     setPage('home')
     addToast('Вы вышли из системы')
+  }
+
+  // Mandatory Auth Gate
+  if (!currentUser) {
+    return (
+      <div className="app">
+        <AuthModal force={true} onClose={() => {}} onLogin={handleLogin} />
+        <ToastContainer toasts={toasts} />
+      </div>
+    )
   }
 
   return (
