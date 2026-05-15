@@ -138,7 +138,7 @@ export default function ConstructorSidebar({ config, setConfig, onOrder, onSave,
 
       {/* Actions */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
-        <button className="btn btn-primary" onClick={onOrder} style={{ justifyContent: 'center' }}>📦 Оформить заказ</button>
+        <button className="btn btn-primary" onClick={onOrder} style={{ justifyContent: 'center' }}>🛒 В корзину</button>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={onSave}>💾 Сохранить</button>
           <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={onExportImage}>📷 Фото</button>

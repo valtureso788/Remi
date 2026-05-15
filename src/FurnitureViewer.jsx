@@ -337,7 +337,7 @@ export default function FurnitureViewer({ config }) {
         />
 
         {/* Floor grid */}
-        <gridHelper args={[20, 40, '#2a2a4e', '#1a1a2e']} position={[0, -(config.height / 200 + (config.legs !== 'none' ? 0.08 : 0) + 0.001), 0]} />
+        <gridHelper args={[20, 40, '#cbd5e1', '#e2e8f0']} position={[0, -(config.height / 200 + (config.legs !== 'none' ? 0.08 : 0) + 0.001), 0]} />
       </Suspense>
     </Canvas>
   )

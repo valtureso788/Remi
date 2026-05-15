@@ -583,8 +583,8 @@ function ConstructorPage({ config, setConfig, addToast, onBack, currentUser }) {
           <div className="label">Итого</div>
           <div className="price">{formatPrice(calculatePrice(config).total)}</div>
         </div>
-        <div style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
-          <button className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={16} /> Каталог</button>
+        <div style={{ position: 'absolute', top: 24, left: 24, zIndex: 10 }}>
+          <button className="btn btn-secondary btn-sm" onClick={onBack}><ArrowLeft size={16} /> В каталог</button>
         </div>
         <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--text-muted)'}}><div style={{textAlign:'center'}}><div className="float" style={{fontSize:'3rem',marginBottom:16}}>🪑</div><p>Загрузка 3D модели...</p></div></div>}>
           <FurnitureViewer config={config} />
@@ -643,7 +643,7 @@ export default function App() {
     <div className="app">
       <nav className="navbar">
         <div className="navbar-brand" onClick={() => setPage('home')} style={{ cursor: 'pointer' }}>
-          <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="url(#navgrad)"/><text x="16" y="22" textAnchor="middle" fill="white" fontSize="18" fontWeight="800" fontFamily="Inter">R</text><defs><linearGradient id="navgrad" x1="0" y1="0" x2="32" y2="32"><stop stopColor="#ec4899"/><stop offset="1" stopColor="#8b5cf6"/></linearGradient></defs></svg>
+          <svg viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#2563eb"/><text x="16" y="22" textAnchor="middle" fill="white" fontSize="18" fontWeight="800" fontFamily="Inter">R</text></svg>
           REMI
         </div>
         <div className="navbar-links">
