@@ -75,21 +75,72 @@ function AuthModal({ onClose, onLogin, force }) {
 function OrderModal({ config, onClose, onSubmit, currentUser }) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ name: currentUser?.name || '', phone: '', address: '', comment: '' })
+  const [card, setCard] = useState({ number: '', expiry: '', cvc: '' })
+  const [errors, setErrors] = useState({})
   const [isProcessing, setIsProcessing] = useState(false)
   const pricing = calculatePrice(config)
 
+  const validateStep1 = () => {
+    const errs = {}
+    if (form.name.trim().length < 2) errs.name = 'Имя слишком короткое'
+    if (!/^\+?[\d\s\-()]{10,}$/.test(form.phone)) errs.phone = 'Некорректный формат телефона'
+    if (form.address.trim().length < 10) errs.address = 'Введите полный адрес (не менее 10 символов)'
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const validateStep2 = () => {
+    const errs = {}
+    if (card.number.replace(/\s/g, '').length !== 16) errs.number = 'Номер карты должен состоять из 16 цифр'
+    
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(card.expiry)) {
+      errs.expiry = 'Некорректный срок (MM/YY)'
+    } else {
+      const [m, y] = card.expiry.split('/')
+      if (parseInt(y) < 24) errs.expiry = 'Карта просрочена'
+    }
+    
+    if (!/^\d{3}$/.test(card.cvc)) errs.cvc = 'CVC должен состоять из 3 цифр'
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
   const handleNext = (e) => {
     e.preventDefault()
-    setStep(2)
+    if (validateStep1()) {
+      setErrors({})
+      setStep(2)
+    }
   }
 
   const handlePay = (e) => {
     e.preventDefault()
-    setIsProcessing(true)
-    setTimeout(() => {
-      setIsProcessing(false)
-      onSubmit({ ...form, total: pricing.total, type: config.type, userId: currentUser?.id })
-    }, 2000)
+    if (validateStep2()) {
+      setIsProcessing(true)
+      setTimeout(() => {
+        setIsProcessing(false)
+        onSubmit({ ...form, total: pricing.total, type: config.type, userId: currentUser?.id })
+      }, 2000)
+    }
+  }
+
+  const handleCardNumber = (val) => {
+    const digits = val.replace(/\D/g, '').substring(0, 16)
+    const formatted = digits.match(/.{1,4}/g)?.join(' ') || digits
+    setCard({ ...card, number: formatted })
+  }
+
+  const handleExpiry = (val) => {
+    const digits = val.replace(/\D/g, '').substring(0, 4)
+    if (digits.length >= 3) {
+      setCard({ ...card, expiry: `${digits.substring(0, 2)}/${digits.substring(2)}` })
+    } else {
+      setCard({ ...card, expiry: digits })
+    }
+  }
+
+  const handleCvc = (val) => {
+    setCard({ ...card, cvc: val.replace(/\D/g, '').substring(0, 3) })
   }
 
   return (
@@ -100,10 +151,25 @@ function OrderModal({ config, onClose, onSubmit, currentUser }) {
             <h2>📦 Оформление заказа</h2>
             <p style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>Итого к оплате: <strong style={{ color: 'var(--green)' }}>{formatPrice(pricing.total)}</strong></p>
             <form onSubmit={handleNext}>
-              <div className="form-group"><label>Имя *</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
-              <div className="form-group"><label>Телефон *</label><input type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} required /></div>
-              <div className="form-group"><label>Адрес доставки *</label><input type="text" value={form.address} onChange={e => setForm({...form, address: e.target.value})} required /></div>
-              <div className="form-group"><label>Комментарий</label><textarea value={form.comment} onChange={e => setForm({...form, comment: e.target.value})} /></div>
+              <div className="form-group">
+                <label>Имя *</label>
+                <input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
+                {errors.name && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: 4 }}>{errors.name}</div>}
+              </div>
+              <div className="form-group">
+                <label>Телефон *</label>
+                <input type="tel" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} placeholder="+7 (999) 000-00-00" required />
+                {errors.phone && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: 4 }}>{errors.phone}</div>}
+              </div>
+              <div className="form-group">
+                <label>Адрес доставки *</label>
+                <input type="text" value={form.address} onChange={e => setForm({...form, address: e.target.value})} placeholder="г. Москва, ул. Примерная, д. 1, кв. 1" required />
+                {errors.address && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: 4 }}>{errors.address}</div>}
+              </div>
+              <div className="form-group">
+                <label>Комментарий</label>
+                <textarea value={form.comment} onChange={e => setForm({...form, comment: e.target.value})} />
+              </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={onClose}>Отмена</button>
                 <button type="submit" className="btn btn-primary">Перейти к оплате</button>
@@ -120,10 +186,22 @@ function OrderModal({ config, onClose, onSubmit, currentUser }) {
               </div>
             ) : (
               <form onSubmit={handlePay}>
-                <div className="form-group"><label>Номер карты</label><input type="text" placeholder="0000 0000 0000 0000" maxLength="19" required /></div>
+                <div className="form-group">
+                  <label>Номер карты</label>
+                  <input type="text" placeholder="0000 0000 0000 0000" value={card.number} onChange={e => handleCardNumber(e.target.value)} required />
+                  {errors.number && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: 4 }}>{errors.number}</div>}
+                </div>
                 <div className="form-row">
-                  <div className="form-group"><label>Срок</label><input type="text" placeholder="MM/YY" maxLength="5" required /></div>
-                  <div className="form-group"><label>CVC</label><input type="password" placeholder="123" maxLength="3" required /></div>
+                  <div className="form-group">
+                    <label>Срок</label>
+                    <input type="text" placeholder="MM/YY" value={card.expiry} onChange={e => handleExpiry(e.target.value)} required />
+                    {errors.expiry && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: 4 }}>{errors.expiry}</div>}
+                  </div>
+                  <div className="form-group">
+                    <label>CVC</label>
+                    <input type="password" placeholder="123" value={card.cvc} onChange={e => handleCvc(e.target.value)} required />
+                    {errors.cvc && <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginTop: 4 }}>{errors.cvc}</div>}
+                  </div>
                 </div>
                 <div className="modal-actions">
                   <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>Назад</button>
