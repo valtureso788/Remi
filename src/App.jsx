@@ -1,10 +1,11 @@
-import React, { useState, useCallback, Suspense, useEffect } from 'react'
+import React, { useState, useCallback, Suspense, useEffect, lazy } from 'react'
 import { FURNITURE_TYPES, MATERIALS, BODY_COLORS, FACADE_COLORS, DOOR_TYPES, HANDLE_TYPES, LEG_TYPES, calculatePrice, formatPrice, getDefaultConfig } from './data'
 import ConstructorSidebar from './ConstructorSidebar'
 import FurnitureViewer from './FurnitureViewer'
+import RoomPlanner from './RoomPlanner'
 import { QRCodeSVG } from 'qrcode.react'
 import jsPDF from 'jspdf'
-import { RotateCcw, ZoomIn, ZoomOut, Camera, Sun, Moon, Menu, X, Home, Wrench as WrenchIcon, Shield, BarChart3, Package, Users, Settings, Eye, Trash2, ArrowLeft, LogIn, LogOut, MessageSquare, CreditCard, Star } from 'lucide-react'
+import { RotateCcw, ZoomIn, ZoomOut, Camera, Sun, Moon, Menu, X, Home, Wrench as WrenchIcon, Shield, BarChart3, Package, Users, Settings, Eye, Trash2, ArrowLeft, LogIn, LogOut, MessageSquare, CreditCard, Star, Layout } from 'lucide-react'
 import * as db from './db'
 
 // ===== Toast System =====
@@ -682,7 +683,7 @@ function ConstructorPage({ config, setConfig, addToast, onBack, currentUser }) {
 
 // ===== Main App =====
 export default function App() {
-  const [page, setPage] = useState('home') // home | constructor | dashboard
+  const [page, setPage] = useState('home') // home | constructor | dashboard | planner
   const [config, setConfig] = useState(getDefaultConfig('wardrobe'))
   const [toasts, setToasts] = useState([])
   const [showProjects, setShowProjects] = useState(false)
@@ -727,6 +728,7 @@ export default function App() {
         <div className="navbar-links">
           <a className={page === 'home' ? 'active' : ''} onClick={() => setPage('home')}>Главная</a>
           <a className={page === 'constructor' ? 'active' : ''} onClick={() => { if (page !== 'constructor') { setConfig(getDefaultConfig('wardrobe')); setPage('constructor'); } }}>Конструктор</a>
+          <a className={page === 'planner' ? 'active' : ''} onClick={() => setPage('planner')}><Layout size={16} /> Планировщик</a>
           <button onClick={() => setShowProjects(true)}>Проекты</button>
           
           {currentUser ? (
@@ -744,6 +746,7 @@ export default function App() {
 
       {page === 'home' && <HomePage onSelectType={t => { setConfig(getDefaultConfig(t)); setPage('constructor') }} currentUser={currentUser} addToast={addToast} />}
       {page === 'constructor' && <ConstructorPage config={config} setConfig={setConfig} addToast={addToast} onBack={() => setPage('home')} currentUser={currentUser} />}
+      {page === 'planner' && <RoomPlanner addToast={addToast} onBack={() => setPage('home')} />}
       {page === 'dashboard' && currentUser && (
         <>
           {currentUser.role === 'admin' && <AdminDashboard />}
