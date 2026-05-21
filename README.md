@@ -52,7 +52,7 @@
 
 ## 🌐 Демо
 
-🔗 **Живая версия:** [remi-furniture-app.surge.sh](http://remi-furniture-app.surge.sh)
+🔗 **Живая версия:** [remi-furniture.surge.sh](http://remi-furniture.surge.sh)
 
 ---
 
@@ -234,7 +234,7 @@ npm run dev
 npm run build
 
 # Деплой на Surge
-npx surge ./dist remi-furniture-app.surge.sh
+npx surge ./dist remi-furniture.surge.sh
 ```
 
 ---
